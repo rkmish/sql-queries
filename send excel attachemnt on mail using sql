@@ -1,0 +1,180 @@
+USE [AssetManagement_Support]
+GO
+/****** Object:  StoredProcedure [dbo].[Proc_Sendattachment_Asset]    Script Date: 9/18/2017 3:58:13 PM ******/
+SET ANSI_NULLS ON
+GO
+SET QUOTED_IDENTIFIER ON
+GO
+
+-- =============================================
+-- Author:		<rohit mishra>
+-- Create date: <8 sept 2017>
+-- Description:	<automated email report for Asset/Page requests with status ‘Published on Production’ >
+-- exec Proc_Sendattachment_Asset 2, '2'
+-- =============================================
+ALTER PROCEDURE [dbo].[Proc_Sendattachment_Asset] 
+	@ID varchar(100), 
+	@TypeID nvarchar(100)	
+AS
+BEGIN
+	-- SET NOCOUNT ON added to prevent extra result sets from
+	-- interfering with SELECT statements.
+	SET NOCOUNT ON;
+    -- Insert statements for procedure here
+    
+declare @Sqlquery varchar(max)
+declare @ComTableQry varchar(max)
+declare @FileName varchar(250)
+declare @DBName varchar(100) 
+set @DBName = (select DB_NAME() as DataBaseName)
+select @FileName = CONVERT(varchar(12), getdate(),106) + '.xls'
+--print @FileName
+
+if(@TypeID=1)
+begin
+
+set @ComTableQry = 'SET NOCOUNT ON 
+					
+					--print ''asset''
+					select ''WebsiteName'' ,''ContentType'', cast(''SubType'' as varchar(50)) ,''Title'', ''Author'', ''Function'',''Industry'',''Tags'',''Linkedin'',''Twitter'',''MetaTitle'',''CurrentActiveLink'',''DownloadableLink'',''PublishedDate''
+					union
+					--Asset
+					select distinct  WS.WebsiteName,CT.ContentTypeName,cast(AT.AssetTypeID as varchar(50)),
+					REPLACE(REPLACE(REPLACE(AT.Title, CHAR(9), ''''), CHAR(10), ''''), CHAR(13), ''''),
+					AUTH.AuthorName,
+					FunctionName = STUFF(
+						(  
+							   SELECT DISTINCT '', '' + CAST(Fun.FunctionName AS VARCHAR(MAX))  
+							   FROM '+@DBName+'.dbo.TX_FunctionAsset (nolock) FA 
+								inner join '+@DBName+'.dbo.TM_Function (nolock) Fun on Fun.FunctionID = FA.FunctionName
+							   WHERE FA.AssetID = AT.AssetID 
+							   FOR XML PATH('''')  
+		       
+							 ),1,1,''''  
+						),
+					IndustryName = STUFF(
+						(  
+							   SELECT DISTINCT '','' + CAST(IND.IndustryName AS VARCHAR(MAX))  
+							   FROM '+@DBName+'.dbo.TX_IndustoryAsset (nolock) IA
+								inner join '+@DBName+'.dbo.TM_Industry (nolock) IND on IND.IndustryID = IA.IndustoryName
+							   WHERE IA.AssetID = AT.AssetID 
+							   FOR XML PATH('''')  
+		       
+							 ),1,1,''''  
+						),
+					
+					TagName = STUFF(
+						(  
+							   SELECT DISTINCT '','' + CAST(TG.TagName AS VARCHAR(MAX))  
+							   FROM '+@DBName+'.dbo.TX_TagAsset (nolock) TAS
+								left join '+@DBName+'.dbo.TM_Tag (nolock) TG on TG.TagID = TAS.TagName
+							   WHERE TAS.AssetID = AT.AssetID 
+							   FOR XML PATH('''')  
+		       
+							 ),1,1,''''  
+						),
+					REPLACE(REPLACE(REPLACE(AT.Linkedin, CHAR(9), ''''), CHAR(10), ''''), CHAR(13), ''''),
+					REPLACE(REPLACE(REPLACE(AT.Twitter, CHAR(9), ''''), CHAR(10), ''''), CHAR(13), ''''),
+					AT.MetaTitle,AT.CurrentActiveLink,
+					AT.DownloadableLink,cast(AT.PublishedDate as varchar(250))
+					from '+@DBName+'.dbo.TM_Website (nolock) WS 
+					inner join '+@DBName+'.dbo.TD_Asset (nolock) AT on AT.WebsiteID = WS.WebsiteID 
+					inner join '+@DBName+'.dbo.TM_ContentType (nolock) CT on CT.ContentTypeID = AT.ContentTypeID
+					inner join '+@DBName+'.dbo.Tx_AuthorAsset (nolock) AAT on AAT.AssetID = AT.AssetID
+					inner join '+@DBName+'.dbo.TM_Author (nolock) AUTH  on AUTH.AuthorID = AAT.AuthorID 
+					where AT.StatusID = 7 AND AT.AssetID=cast(''' +@ID +''' as int)--status for Published on Production'
+
+				    END
+					else if( @TypeID =2 )
+					begin
+					--page
+set @ComTableQry = '	
+				SET NOCOUNT ON 
+					select ''WebsiteName'' ,''ContentType'', cast(''SubType'' as varchar(50)) ,''Title'', ''Author'', ''Function'',''Industry'',''Tags'',''Linkedin'',''Twitter'',''MetaTitle'',''CurrentActiveLink'',''DownloadableLink'',''PublishedDate''
+					union
+					select distinct  WS.WebsiteName,CT.ContentTypeName,cast(PG.AssetTypeID as varchar(50)),
+					REPLACE(REPLACE(REPLACE(PG.Title, CHAR(9), ''''), CHAR(10), ''''), CHAR(13), ''''),
+					null as AuthorName,
+					FunctionName = STUFF(
+						(  
+							   SELECT DISTINCT '','' + CAST(Fun.FunctionName AS VARCHAR(MAX))  
+							   FROM '+@DBName+'.dbo.TX_FunctionPage (nolock) FP 
+								inner join '+@DBName+'.dbo.TM_Function (nolock) Fun on Fun.FunctionID = FP.FunctionName
+							   WHERE FP.PageID = PG.PageID 
+							   FOR XML PATH('''')  
+		       
+							 ),1,1,''''  
+						),
+					IndustryName = STUFF(
+						(  
+							   SELECT DISTINCT '','' + CAST(IND.IndustryName AS VARCHAR(MAX))  
+							   FROM '+@DBName+'.dbo.TX_IndustoryPage (nolock) IP 
+								inner join '+@DBName+'.dbo.TM_Industry (nolock) IND on IND.IndustryID = IP.IndustoryName
+							   WHERE IP.PageID =  PG.PageID 
+							   FOR XML PATH('''')  
+		       
+							 ),1,1,''''  
+						),
+					TagName = STUFF(
+						(  
+							   SELECT DISTINCT '','' + CAST(TG.TagName AS VARCHAR(MAX))  
+							   FROM '+@DBName+'.dbo.TX_TagPage (nolock) TP
+								inner join '+@DBName+'.dbo.TM_Tag (nolock) TG on TG.TagID = TP.TagName
+							   WHERE TP.PageID = PG.PageID 
+							   FOR XML PATH('''')  
+		       
+							 ),1,1,''''  
+						),
+					REPLACE(REPLACE(REPLACE(PG.Linkedin, CHAR(9), ''''), CHAR(10), ''''), CHAR(13), ''''),
+					REPLACE(REPLACE(REPLACE(PG.Twitter, CHAR(9), ''''), CHAR(10), ''''), CHAR(13), ''''),
+					PG.MetaTitle,PG.CurrentActiveLink,
+					PG.DownloadableLink,cast(PG.PublishedDate as varchar(250))
+					from '+@DBName+'.dbo.TM_Website (nolock) WS 
+					inner join '+@DBName+'.dbo.TD_Page (nolock) PG on PG.WebsiteID = WS.WebsiteID 
+					inner join '+@DBName+'.dbo.TM_ContentType (nolock) CT on CT.ContentTypeID = PG.ContentTypeID
+					where PG.StatusID = 7 AND PG.PageID = cast(''' +@ID +''' as int) --status for Published on Productio
+					'
+					end
+					exec (@ComTableQry)
+				--	select @ComTableQry
+
+DECLARE @separator CHAR(1)
+SET @separator = CHAR(9)
+
+declare @MailTo nvarchar(max);    
+declare @MailCC nvarchar(512);  
+
+ IF (@@SERVERNAME = 'WIM2K8SQL1') 
+		BEGIN				
+				SET @MailTo = 'Asset_M.28mpqb3cuvm46k56@u.box.com' 
+				--SET @MailCC = 'rohit.mishra@wns.com'
+		END
+else
+		begin	
+				SET @MailTo = 'yogesh.khopade@wns.com'
+		end
+
+
+print @MailTo
+EXEC msdb.dbo.sp_send_dbmail                
+@profile_name = 'Asset Management WNS',
+@recipients = @MailTo,                  
+--@copy_recipients = @MailCC,                
+--@body_format = 'HTML',                
+--@body = @EmailBody,                 
+@subject = 'mail',
+@query =@ComTableQry,
+@attach_query_result_as_file = 1,
+@query_attachment_filename = @FileName,
+@query_result_separator = @separator,
+@query_result_header =0, 
+@query_result_no_padding = 1,
+@exclude_query_output = 1, 
+@append_query_error = 1,
+@query_result_width=32767
+
+
+
+  
+	
+END
